@@ -4,6 +4,7 @@ import type { GlicemiaRecord } from '@/types';
 import { MOMENTOS } from '@/types';
 import { analisarGlicemia } from '@/utils/glicemia';
 import { loadRecords, deleteRecord, clearAllRecords } from '@/utils/storage';
+import GlucoseChart from '@/components/GlucoseChart';
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -97,6 +98,8 @@ export default function HistoryTab() {
           </p>
         </div>
       ) : (
+        <>
+        <GlucoseChart records={records} />
         <div className="space-y-3">
           {records.map((r) => {
             const a = analisarGlicemia(r.valor);
@@ -137,6 +140,7 @@ export default function HistoryTab() {
             );
           })}
         </div>
+        </>
       )}
     </div>
   );
