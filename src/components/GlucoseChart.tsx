@@ -13,8 +13,9 @@ const CHART_HEIGHT = 240;
 const CHART_PADDING = { top: 24, right: 16, bottom: 44, left: 44 };
 const MAX_VALUE = 350;
 const MIN_VALUE = 0;
-const NORMAL_MIN = 70;
-const NORMAL_MAX = 140;
+const THRESHOLD_BAIXA = 70;
+const THRESHOLD_NORMAL = 140;
+const THRESHOLD_ALTA = 180;
 
 function formatShortDate(iso: string): string {
   const d = new Date(iso);
@@ -35,7 +36,7 @@ export default function GlucoseChart({ records }: { records: GlicemiaRecord[] })
     return CHART_PADDING.top + plotH - (clamped / MAX_VALUE) * plotH;
   }
 
-  const yTicks = [0, 70, 140, 210, 280, 350];
+  const yTicks = [0, 70, 140, 180, 250, 350];
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6">
@@ -85,35 +86,62 @@ export default function GlucoseChart({ records }: { records: GlicemiaRecord[] })
             );
           })}
 
-          {/* Normal range band (70–140) */}
+          {/* Range zone bands */}
+          {/* <70 — Baixa (amber) */}
           <rect
             x={CHART_PADDING.left}
-            y={yForValue(NORMAL_MAX)}
+            y={yForValue(THRESHOLD_BAIXA)}
             width={plotW}
-            height={yForValue(NORMAL_MIN) - yForValue(NORMAL_MAX)}
+            height={CHART_PADDING.top + plotH - yForValue(THRESHOLD_BAIXA)}
+            fill="#f59e0b"
+            fillOpacity={0.06}
+          />
+          {/* 70–140 — Normal (emerald) */}
+          <rect
+            x={CHART_PADDING.left}
+            y={yForValue(THRESHOLD_NORMAL)}
+            width={plotW}
+            height={yForValue(THRESHOLD_BAIXA) - yForValue(THRESHOLD_NORMAL)}
             fill="#10b981"
             fillOpacity={0.06}
           />
-          <line
-            x1={CHART_PADDING.left}
-            y1={yForValue(NORMAL_MAX)}
-            x2={600 - CHART_PADDING.right}
-            y2={yForValue(NORMAL_MAX)}
-            stroke="#10b981"
-            strokeWidth={1}
-            strokeDasharray="4 3"
-            strokeOpacity={0.4}
+          {/* 140–180 — Alta (orange) */}
+          <rect
+            x={CHART_PADDING.left}
+            y={yForValue(THRESHOLD_ALTA)}
+            width={plotW}
+            height={yForValue(THRESHOLD_NORMAL) - yForValue(THRESHOLD_ALTA)}
+            fill="#f97316"
+            fillOpacity={0.06}
           />
-          <line
-            x1={CHART_PADDING.left}
-            y1={yForValue(NORMAL_MIN)}
-            x2={600 - CHART_PADDING.right}
-            y2={yForValue(NORMAL_MIN)}
-            stroke="#f59e0b"
-            strokeWidth={1}
-            strokeDasharray="4 3"
-            strokeOpacity={0.4}
+          {/* >180 — Muito alta (red) */}
+          <rect
+            x={CHART_PADDING.left}
+            y={CHART_PADDING.top}
+            width={plotW}
+            height={yForValue(THRESHOLD_ALTA) - CHART_PADDING.top}
+            fill="#ef4444"
+            fillOpacity={0.06}
           />
+
+          {/* Threshold lines */}
+          {[
+            { val: THRESHOLD_BAIXA, color: '#f59e0b' },
+            { val: THRESHOLD_NORMAL, color: '#10b981' },
+            { val: THRESHOLD_ALTA, color: '#f97316' },
+          ].map(({ val, color }) => (
+            <line
+              key={val}
+              x1={CHART_PADDING.left}
+              y1={yForValue(val)}
+              x2={600 - CHART_PADDING.right}
+              y2={yForValue(val)}
+              stroke={color}
+              strokeWidth={1}
+              strokeDasharray="4 3"
+              strokeOpacity={0.45}
+            />
+          ))}
 
           {/* Bars */}
           {chartRecords.map((r, i) => {
@@ -182,23 +210,20 @@ export default function GlucoseChart({ records }: { records: GlicemiaRecord[] })
 
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3 pt-3 border-t border-slate-100">
-        <LegendItem color="#10b981" label="Normal" />
-        <LegendItem color="#f59e0b" label="Baixa" />
-        <LegendItem color="#f97316" label="Alta" />
-        <LegendItem color="#ef4444" label="Muito alta" />
-        <span className="ml-auto text-xs text-slate-400">
-          Faixa normal: 70–140 mg/dL
-        </span>
+        <LegendItem color="#f59e0b" label="Baixa" range="<70" />
+        <LegendItem color="#10b981" label="Normal" range="70–140" />
+        <LegendItem color="#f97316" label="Alta" range="140–180" />
+        <LegendItem color="#ef4444" label="Muito alta" range=">180" />
       </div>
     </div>
   );
 }
 
-function LegendItem({ color, label }: { color: string; label: string }) {
+function LegendItem({ color, label, range }: { color: string; label: string; range: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-slate-600">
       <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: color }} />
-      {label}
+      {label} <span className="text-slate-400">({range})</span>
     </span>
   );
 }
