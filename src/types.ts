@@ -2,6 +2,7 @@ export type Momento = 'jejum' | 'pre-refeicao' | 'pos-refeicao' | 'aleatorio';
 
 export interface PatientProfile {
   nome: string;
+  email: string;
   idade: string;
   peso: string;
   altura: string;
