@@ -3,7 +3,7 @@ import { Plus, Activity, Droplet, CheckCircle2, Loader2 } from 'lucide-react';
 import type { GlicemiaRecord, Momento, AnaliseGlicemia } from '@/types';
 import { MOMENTOS } from '@/types';
 import { analisarGlicemia } from '@/utils/glicemia';
-import { loadRecords, addRecord } from '@/utils/storage';
+import { fetchMeasurements as loadRecords, createMeasurement } from '@/lib/api';
 import RecommendationCard from '@/components/RecommendationCard';
 import CriticalAlertModal from '@/components/CriticalAlertModal';
 
@@ -39,12 +39,7 @@ export default function GlucoseTab() {
 
     setSaving(true);
     try {
-      const updated = await addRecord({
-        valor: v,
-        momento,
-        horario,
-        data: new Date().toISOString(),
-      });
+      const updated = await createMeasurement(v, new Date().toISOString());
       setRecords(updated);
       const a = analisarGlicemia(v);
       setAnalise(a);

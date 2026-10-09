@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { History, Trash2, Droplet, Calendar, Loader2 } from 'lucide-react';
+import { History, Droplet, Calendar, Loader2, TrendingUp } from 'lucide-react';
 import type { GlicemiaRecord } from '@/types';
 import { MOMENTOS } from '@/types';
 import { analisarGlicemia } from '@/utils/glicemia';
-import { loadRecords, deleteRecord, clearAllRecords } from '@/utils/storage';
+import { fetchMeasurements, fetchAverage } from '@/lib/api';
 import GlucoseChart from '@/components/GlucoseChart';
 
 function formatDate(iso: string): string {
@@ -29,33 +29,18 @@ function valorColor(valor: number): string {
 
 export default function HistoryTab() {
   const [records, setRecords] = useState<GlicemiaRecord[]>([]);
+  const [average, setAverage] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadRecords().then((r) => {
-      setRecords(r);
-      setLoading(false);
-    });
+    Promise.all([fetchMeasurements(), fetchAverage()])
+      .then(([r, avg]) => {
+        setRecords(r);
+        setAverage(avg);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, []);
-
-  async function handleDelete(id: string) {
-    try {
-      const updated = await deleteRecord(id);
-      setRecords(updated);
-    } catch {
-      alert('Erro ao excluir registro. Tente novamente.');
-    }
-  }
-
-  async function handleClearAll() {
-    if (!confirm('Tem certeza que deseja apagar todo o histórico?')) return;
-    try {
-      await clearAllRecords();
-      setRecords([]);
-    } catch {
-      alert('Erro ao limpar histórico. Tente novamente.');
-    }
-  }
 
   if (loading) {
     return (
@@ -77,15 +62,21 @@ export default function HistoryTab() {
             <p className="text-sm text-slate-500">{records.length} registro(s)</p>
           </div>
         </div>
-        {records.length > 0 && (
-          <button
-            onClick={handleClearAll}
-            className="text-sm text-red-500 hover:text-red-700 font-medium transition"
-          >
-            Limpar tudo
-          </button>
-        )}
       </div>
+
+      {average !== null && records.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-4 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-teal-50 flex items-center justify-center">
+            <TrendingUp className="w-6 h-6 text-teal-600" />
+          </div>
+          <div>
+            <p className="text-sm text-slate-500">Média glicêmica</p>
+            <p className="text-2xl font-bold text-slate-800">
+              {average.toFixed(1)} <span className="text-base font-normal text-slate-400">mg/dL</span>
+            </p>
+          </div>
+        </div>
+      )}
 
       {records.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
@@ -107,7 +98,7 @@ export default function HistoryTab() {
             return (
               <div
                 key={r.id}
-                className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex items-center gap-4 group hover:shadow-md transition"
+                className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex items-center gap-4 hover:shadow-md transition"
               >
                 <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${valorColor(r.valor)}`}>
                   <Droplet className="w-6 h-6" />
@@ -129,13 +120,6 @@ export default function HistoryTab() {
                   <p className="text-xs text-slate-400 mt-1 truncate">{a.titulo}</p>
                 </div>
 
-                <button
-                  onClick={() => handleDelete(r.id)}
-                  className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-500 transition shrink-0"
-                  aria-label="Excluir"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
               </div>
             );
           })}

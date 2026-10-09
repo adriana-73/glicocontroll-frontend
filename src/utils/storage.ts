@@ -1,4 +1,4 @@
-import type { PatientProfile, GlicemiaRecord } from '@/types';
+import type { PatientProfile } from '@/types';
 import { supabase } from '@/lib/supabase';
 
 const PROFILE_ID = '00000000-0000-0000-0000-000000000001';
@@ -22,14 +22,6 @@ type DbProfile = {
   medicamentos: string;
 };
 
-type DbGlicemia = {
-  id: string;
-  valor: number;
-  momento: string;
-  horario: string;
-  data: string;
-};
-
 function mapProfile(row: DbProfile): PatientProfile {
   return {
     nome: row.nome ?? '',
@@ -38,16 +30,6 @@ function mapProfile(row: DbProfile): PatientProfile {
     peso: row.peso ?? '',
     altura: row.altura ?? '',
     medicamentos: row.medicamentos ?? '',
-  };
-}
-
-function mapRecord(row: DbGlicemia): GlicemiaRecord {
-  return {
-    id: row.id,
-    valor: row.valor,
-    momento: row.momento as GlicemiaRecord['momento'],
-    horario: row.horario,
-    data: row.data,
   };
 }
 
@@ -82,56 +64,6 @@ export async function saveProfile(profile: PatientProfile): Promise<void> {
 
   if (error) {
     console.error('Erro ao salvar perfil:', error.message);
-    throw error;
-  }
-}
-
-export async function loadRecords(): Promise<GlicemiaRecord[]> {
-  const { data, error } = await supabase
-    .from('glicemia_records')
-    .select('id, valor, momento, horario, data')
-    .order('data', { ascending: false });
-
-  if (error) {
-    console.error('Erro ao carregar registros:', error.message);
-    return [];
-  }
-
-  return (data as DbGlicemia[]).map(mapRecord);
-}
-
-export async function addRecord(record: Omit<GlicemiaRecord, 'id'>): Promise<GlicemiaRecord[]> {
-  const { error } = await supabase.from('glicemia_records').insert({
-    valor: record.valor,
-    momento: record.momento,
-    horario: record.horario,
-    data: record.data,
-  });
-
-  if (error) {
-    console.error('Erro ao adicionar registro:', error.message);
-    throw error;
-  }
-
-  return loadRecords();
-}
-
-export async function deleteRecord(id: string): Promise<GlicemiaRecord[]> {
-  const { error } = await supabase.from('glicemia_records').delete().eq('id', id);
-
-  if (error) {
-    console.error('Erro ao excluir registro:', error.message);
-    throw error;
-  }
-
-  return loadRecords();
-}
-
-export async function clearAllRecords(): Promise<void> {
-  const { error } = await supabase.from('glicemia_records').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-
-  if (error) {
-    console.error('Erro ao limpar registros:', error.message);
     throw error;
   }
 }
