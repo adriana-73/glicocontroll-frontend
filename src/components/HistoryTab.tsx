@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { History, Droplet, Calendar, Loader2, TrendingUp } from 'lucide-react';
+import { History, Droplet, Calendar, Loader2, TrendingUp, User } from 'lucide-react';
 import type { GlicemiaRecord } from '@/types';
 import { MOMENTOS } from '@/types';
 import { analisarGlicemia } from '@/utils/glicemia';
 import { fetchMeasurements, fetchAverage } from '@/lib/api';
 import GlucoseChart from '@/components/GlucoseChart';
+
+const PROFILE_API = 'http://localhost:8080/api/users';
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -31,15 +33,22 @@ export default function HistoryTab() {
   const [records, setRecords] = useState<GlicemiaRecord[]>([]);
   const [average, setAverage] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userName, setUserName] = useState('');
 
   useEffect(() => {
-    Promise.all([fetchMeasurements(), fetchAverage()])
-      .then(([r, avg]) => {
-        setRecords(r);
-        setAverage(avg);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    Promise.all([
+      fetchMeasurements().catch(() => [] as GlicemiaRecord[]),
+      fetchAverage().catch(() => null),
+      fetch(PROFILE_API)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => (data?.nome ? data.nome as string : ''))
+        .catch(() => ''),
+    ]).then(([r, avg, name]) => {
+      setRecords(r);
+      setAverage(avg);
+      setUserName(name);
+      setLoading(false);
+    });
   }, []);
 
   if (loading) {
@@ -62,6 +71,12 @@ export default function HistoryTab() {
             <p className="text-sm text-slate-500">{records.length} registro(s)</p>
           </div>
         </div>
+        {userName && (
+          <div className="flex items-center gap-2 bg-teal-50 rounded-xl px-3 py-2">
+            <User className="w-4 h-4 text-teal-600" />
+            <span className="text-sm font-medium text-teal-700">{userName}</span>
+          </div>
+        )}
       </div>
 
       {average !== null && records.length > 0 && (
