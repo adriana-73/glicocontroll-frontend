@@ -1,7 +1,6 @@
 import type { GlicemiaRecord, Momento, PatientProfile } from '@/types';
 
 const BASE_URL = import.meta.env.VITE_API_URL;
-const PROFILE_URL = 'http://localhost:8080/api/users';
 const USER_ID_KEY = 'glicocontrol_user_id';
 
 type ApiMeasurement = {
@@ -55,7 +54,7 @@ export function clearUserId(): void {
 }
 
 export async function fetchProfile(): Promise<{ id: string | null; profile: PatientProfile }> {
-  const res = await fetch(PROFILE_URL);
+  const res = await fetch(`${BASE_URL}/users`);
   if (!res.ok) return { id: null, profile: emptyProfile() };
   const data = (await res.json()) as Partial<ApiProfile>;
   return {
@@ -72,7 +71,7 @@ export async function fetchProfile(): Promise<{ id: string | null; profile: Pati
 }
 
 export async function saveProfile(profile: PatientProfile): Promise<string> {
-  const res = await fetch(PROFILE_URL, {
+  const res = await fetch(`${BASE_URL}/users`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(profile),
