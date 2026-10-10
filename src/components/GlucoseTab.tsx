@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Plus, Activity, Droplet, CheckCircle2, Loader2 } from 'lucide-react';
+import { Plus, Activity, Droplet, CheckCircle2, Loader2, UserCircle } from 'lucide-react';
 import type { GlicemiaRecord, Momento, AnaliseGlicemia } from '@/types';
 import { MOMENTOS } from '@/types';
 import { analisarGlicemia } from '@/utils/glicemia';
-import { fetchMeasurements as loadRecords, createMeasurement } from '@/lib/api';
+import { fetchMeasurements as loadRecords, createMeasurement, getUserId } from '@/lib/api';
 import RecommendationCard from '@/components/RecommendationCard';
 import CriticalAlertModal from '@/components/CriticalAlertModal';
 
@@ -23,12 +23,18 @@ export default function GlucoseTab() {
   const [showCritical, setShowCritical] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const hasUser = !!getUserId();
+
   useEffect(() => {
-    loadRecords().then((r) => {
-      setRecords(r);
+    if (!hasUser) {
       setLoading(false);
-    });
-  }, []);
+      return;
+    }
+    loadRecords()
+      .then((r) => setRecords(r))
+      .catch(() => setRecords([]))
+      .finally(() => setLoading(false));
+  }, [hasUser]);
 
   const latest = records[0];
 
@@ -51,8 +57,9 @@ export default function GlucoseTab() {
       setValor('');
       setShowForm(false);
       setHorario(nowTime());
-    } catch {
-      alert('Erro ao salvar medição. Tente novamente.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao salvar medição.';
+      alert(msg);
     } finally {
       setSaving(false);
     }
@@ -67,6 +74,22 @@ export default function GlucoseTab() {
     return (
       <div className="max-w-2xl mx-auto flex items-center justify-center py-20">
         <Loader2 className="w-8 h-8 text-teal-500 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!hasUser) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
+          <div className="w-16 h-16 rounded-full bg-teal-50 flex items-center justify-center mx-auto mb-4">
+            <UserCircle className="w-8 h-8 text-teal-500" />
+          </div>
+          <p className="text-slate-700 font-medium">Cadastre seu perfil primeiro</p>
+          <p className="text-sm text-slate-400 mt-1">
+            Vá para a aba Perfil, preencha seus dados e salve para começar a registrar suas medições.
+          </p>
+        </div>
       </div>
     );
   }

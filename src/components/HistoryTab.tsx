@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
-import { History, Droplet, Calendar, Loader2, TrendingUp, User } from 'lucide-react';
+import { History, Droplet, Calendar, Loader2, TrendingUp, User, UserCircle } from 'lucide-react';
 import type { GlicemiaRecord } from '@/types';
 import { MOMENTOS } from '@/types';
 import { analisarGlicemia } from '@/utils/glicemia';
-import { fetchMeasurements, fetchAverage } from '@/lib/api';
+import { fetchMeasurements, fetchAverage, fetchUserName, getUserId } from '@/lib/api';
 import GlucoseChart from '@/components/GlucoseChart';
-
-const PROFILE_API = 'http://localhost:8080/api/users';
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -34,27 +32,45 @@ export default function HistoryTab() {
   const [average, setAverage] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState('');
+  const hasUser = !!getUserId();
 
   useEffect(() => {
+    if (!hasUser) {
+      setLoading(false);
+      return;
+    }
     Promise.all([
       fetchMeasurements().catch(() => [] as GlicemiaRecord[]),
       fetchAverage().catch(() => null),
-      fetch(PROFILE_API)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => (data?.nome ? data.nome as string : ''))
-        .catch(() => ''),
+      fetchUserName().catch(() => ''),
     ]).then(([r, avg, name]) => {
       setRecords(r);
       setAverage(avg);
       setUserName(name);
       setLoading(false);
     });
-  }, []);
+  }, [hasUser]);
 
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto flex items-center justify-center py-20">
         <Loader2 className="w-8 h-8 text-teal-500 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!hasUser) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
+          <div className="w-16 h-16 rounded-full bg-teal-50 flex items-center justify-center mx-auto mb-4">
+            <UserCircle className="w-8 h-8 text-teal-500" />
+          </div>
+          <p className="text-slate-700 font-medium">Nenhum perfil cadastrado</p>
+          <p className="text-sm text-slate-400 mt-1">
+            Vá para a aba Perfil, preencha seus dados e salve para visualizar seu histórico de medições.
+          </p>
+        </div>
       </div>
     );
   }
