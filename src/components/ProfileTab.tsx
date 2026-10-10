@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { User, Save, CheckCircle2, Pill, Loader2, Mail, AlertCircle } from 'lucide-react';
 import type { PatientProfile } from '@/types';
-
-const API_URL = 'http://localhost:8080/api/users';
+import { loadProfile, saveProfile } from '@/utils/storage';
 
 const EMPTY: PatientProfile = {
   nome: '',
@@ -24,30 +23,10 @@ export default function ProfileTab() {
   const [emailTouched, setEmailTouched] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(API_URL);
-        if (!res.ok) throw new Error(`GET ${API_URL} → ${res.status}`);
-        const data = (await res.json()) as Partial<PatientProfile>;
-        if (cancelled) return;
-        setForm({
-          nome: data.nome ?? '',
-          email: data.email ?? '',
-          idade: data.idade ?? '',
-          peso: data.peso ?? '',
-          altura: data.altura ?? '',
-          medicamentos: data.medicamentos ?? '',
-        });
-      } catch (err: unknown) {
-        console.error('Erro ao carregar perfil:', err);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    loadProfile().then((p) => {
+      setForm(p);
+      setLoading(false);
+    });
   }, []);
 
   function update<K extends keyof PatientProfile>(key: K, value: PatientProfile[K]) {
@@ -77,21 +56,7 @@ export default function ProfileTab() {
     setSaving(true);
     setErrorMsg('');
     try {
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-      if (!res.ok) {
-        let detail = '';
-        try {
-          const body = await res.json();
-          detail = body?.message ?? body?.error ?? '';
-        } catch {
-          detail = `HTTP ${res.status}`;
-        }
-        throw new Error(detail);
-      }
+      await saveProfile(form);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err: unknown) {
