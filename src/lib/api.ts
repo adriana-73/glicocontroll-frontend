@@ -16,13 +16,38 @@ type ApiAverage = {
 
 type ApiProfile = {
   id: string;
-  nome: string;
+  name: string;
   email: string;
-  idade: string;
-  peso: string;
-  altura: string;
-  medicamentos: string;
+  age: string;
+  weight: string;
+  height: string;
+  medications: string;
 };
+
+function profileToApi(profile: PatientProfile): Record<string, string> {
+  const payload: Record<string, string> = {
+    name: profile.nome,
+    email: profile.email,
+    age: profile.idade,
+    weight: profile.peso,
+    height: profile.altura,
+    medications: profile.medicamentos,
+  };
+  const existingId = getUserId();
+  if (existingId) payload.id = existingId;
+  return payload;
+}
+
+function apiToProfile(data: Partial<ApiProfile>): PatientProfile {
+  return {
+    nome: data.name ?? '',
+    email: data.email ?? '',
+    idade: data.age ?? '',
+    peso: data.weight ?? '',
+    altura: data.height ?? '',
+    medicamentos: data.medications ?? '',
+  };
+}
 
 function mapMeasurement(row: ApiMeasurement): GlicemiaRecord {
   const dt = new Date(row.measurementDateTime);
@@ -59,14 +84,7 @@ export async function fetchProfile(): Promise<{ id: string | null; profile: Pati
   const data = (await res.json()) as Partial<ApiProfile>;
   return {
     id: data.id ?? null,
-    profile: {
-      nome: data.nome ?? '',
-      email: data.email ?? '',
-      idade: data.idade ?? '',
-      peso: data.peso ?? '',
-      altura: data.altura ?? '',
-      medicamentos: data.medicamentos ?? '',
-    },
+    profile: apiToProfile(data),
   };
 }
 
@@ -74,7 +92,7 @@ export async function saveProfile(profile: PatientProfile): Promise<string> {
   const res = await fetch(`${BASE_URL}/users`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(profile),
+    body: JSON.stringify(profileToApi(profile)),
   });
   if (!res.ok) {
     let detail = '';
