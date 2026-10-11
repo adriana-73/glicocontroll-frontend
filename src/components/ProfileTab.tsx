@@ -55,6 +55,10 @@ export default function ProfileTab() {
 
     setEmailTouched(true);
 
+    if (form.nome.trim() === '') {
+      setErrorMsg('O campo nome é obrigatório.');
+      return;
+    }
     if (form.email.trim() === '') {
       setErrorMsg('O campo e-mail é obrigatório.');
       return;

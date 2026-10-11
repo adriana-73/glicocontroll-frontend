@@ -24,17 +24,27 @@ type ApiProfile = {
   medications: string;
 };
 
-function profileToApi(profile: PatientProfile): Record<string, string> {
-  const payload: Record<string, string> = {
-    name: profile.nome,
-    email: profile.email,
-    age: profile.idade,
-    weight: profile.peso,
-    height: profile.altura,
-    medications: profile.medicamentos,
+function profileToApi(profile: PatientProfile): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    name: profile.nome.trim(),
+    email: profile.email.trim(),
   };
+
   const existingId = getUserId();
   if (existingId) payload.id = existingId;
+
+  const age = parseInt(profile.idade, 10);
+  if (!isNaN(age)) payload.age = age;
+
+  const weight = parseFloat(profile.peso);
+  if (!isNaN(weight)) payload.weight = weight;
+
+  const height = parseFloat(profile.altura);
+  if (!isNaN(height)) payload.height = height;
+
+  const meds = profile.medicamentos.trim();
+  if (meds) payload.medications = meds;
+
   return payload;
 }
 
@@ -109,11 +119,20 @@ export async function saveProfile(profile: PatientProfile): Promise<string> {
     let detail = '';
     try {
       const body = await res.json();
-      detail = body?.message ?? body?.error ?? '';
+      detail = body?.message ?? body?.error ?? body?.detail ?? '';
+      if (!detail && body?.errors) {
+        detail = Array.isArray(body.errors)
+          ? body.errors.map((e: { field?: string; message?: string }) => `${e.field}: ${e.message}`).join('; ')
+          : '';
+      }
     } catch {
-      detail = `HTTP ${res.status}`;
+      try {
+        detail = await res.text();
+      } catch {
+        detail = `HTTP ${res.status}`;
+      }
     }
-    throw new Error(detail);
+    throw new Error(detail || `HTTP ${res.status}`);
   }
   const data = (await res.json()) as Partial<ApiProfile>;
   const id = data.id;
