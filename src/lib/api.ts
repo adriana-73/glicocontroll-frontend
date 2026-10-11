@@ -79,11 +79,22 @@ export function clearUserId(): void {
 }
 
 export async function fetchProfile(): Promise<{ id: string | null; profile: PatientProfile }> {
-  const res = await fetch(`${BASE_URL}/users`);
-  if (!res.ok) return { id: null, profile: emptyProfile() };
-  const data = (await res.json()) as Partial<ApiProfile>;
+  const existingId = getUserId();
+  if (!existingId) return { id: null, profile: emptyProfile() };
+
+  const res = await fetch(`${BASE_URL}/users/${existingId}`);
+  if (!res.ok) return { id: existingId, profile: emptyProfile() };
+
+  let data: Partial<ApiProfile>;
+  const raw = await res.json();
+  if (Array.isArray(raw)) {
+    data = (raw[0] as Partial<ApiProfile>) ?? {};
+  } else {
+    data = raw as Partial<ApiProfile>;
+  }
+
   return {
-    id: data.id ?? null,
+    id: data.id ?? existingId,
     profile: apiToProfile(data),
   };
 }
@@ -161,5 +172,5 @@ export async function fetchAverage(): Promise<number | null> {
 
 export async function fetchUserName(): Promise<string> {
   const { profile } = await fetchProfile();
-  return profile.nome;
+  return profile.nome || 'Paciente';
 }
