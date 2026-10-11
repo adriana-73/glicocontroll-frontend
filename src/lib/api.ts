@@ -1,78 +1,45 @@
+import { supabase } from '@/lib/supabase';
 import type { GlicemiaRecord, Momento, PatientProfile } from '@/types';
 
-const BASE_URL = import.meta.env.VITE_API_URL;
 const USER_ID_KEY = 'glicocontrol_user_id';
+const PROFILE_ID = '00000000-0000-0000-0000-000000000001';
 
-type ApiMeasurement = {
+type DbProfile = {
   id: string;
-  userId: string;
-  value: number;
-  measurementDateTime: string;
-};
-
-type ApiAverage = {
-  media: number;
-};
-
-type ApiProfile = {
-  id: string;
-  name: string;
+  nome: string;
   email: string;
-  age: string;
-  weight: string;
-  height: string;
-  medications: string;
+  idade: string;
+  peso: string;
+  altura: string;
+  medicamentos: string;
 };
 
-function profileToApi(profile: PatientProfile): Record<string, unknown> {
-  const payload: Record<string, unknown> = {
-    name: profile.nome.trim(),
-    email: profile.email.trim(),
-  };
+type DbMeasurement = {
+  id: string;
+  valor: number;
+  momento: string;
+  horario: string;
+  data: string;
+};
 
-  const existingId = getUserId();
-  if (existingId) payload.id = existingId;
-
-  const age = parseInt(profile.idade, 10);
-  if (!isNaN(age)) payload.age = age;
-
-  const weight = parseFloat(profile.peso);
-  if (!isNaN(weight)) payload.weight = weight;
-
-  const height = parseFloat(profile.altura);
-  if (!isNaN(height)) payload.height = height;
-
-  const meds = profile.medicamentos.trim();
-  if (meds) payload.medications = meds;
-
-  return payload;
-}
-
-function apiToProfile(data: Partial<ApiProfile>): PatientProfile {
+function toProfile(row: DbProfile): PatientProfile {
   return {
-    nome: data.name ?? '',
-    email: data.email ?? '',
-    idade: data.age ?? '',
-    peso: data.weight ?? '',
-    altura: data.height ?? '',
-    medicamentos: data.medications ?? '',
+    nome: row.nome ?? '',
+    email: row.email ?? '',
+    idade: row.idade ?? '',
+    peso: row.peso ?? '',
+    altura: row.altura ?? '',
+    medicamentos: row.medicamentos ?? '',
   };
 }
 
-function mapMeasurement(row: ApiMeasurement): GlicemiaRecord {
-  const dt = new Date(row.measurementDateTime);
-  const horario = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
-  const h = dt.getHours();
-  let momento: Momento = 'aleatorio';
-  if (h < 8) momento = 'jejum';
-  else if (h < 12) momento = 'pre-refeicao';
-  else if (h < 16) momento = 'pos-refeicao';
+function toRecord(row: DbMeasurement): GlicemiaRecord {
   return {
     id: row.id,
-    valor: row.value,
-    momento,
-    horario,
-    data: row.measurementDateTime,
+    valor: row.valor,
+    momento: row.momento as Momento,
+    horario: row.horario,
+    data: row.data,
   };
 }
 
@@ -89,54 +56,39 @@ export function clearUserId(): void {
 }
 
 export async function fetchProfile(): Promise<{ id: string | null; profile: PatientProfile }> {
-  const existingId = getUserId();
-  if (!existingId) return { id: null, profile: emptyProfile() };
+  const { data, error } = await supabase
+    .from('patient_profile')
+    .select('*')
+    .eq('id', PROFILE_ID)
+    .maybeSingle();
 
-  const res = await fetch(`${BASE_URL}/users/${existingId}`);
-  if (!res.ok) return { id: existingId, profile: emptyProfile() };
+  if (error) return { id: null, profile: emptyProfile() };
+  if (!data) return { id: null, profile: emptyProfile() };
 
-  let data: Partial<ApiProfile>;
-  const raw = await res.json();
-  if (Array.isArray(raw)) {
-    data = (raw[0] as Partial<ApiProfile>) ?? {};
-  } else {
-    data = raw as Partial<ApiProfile>;
-  }
-
-  return {
-    id: data.id ?? existingId,
-    profile: apiToProfile(data),
-  };
+  return { id: data.id, profile: toProfile(data as DbProfile) };
 }
 
 export async function saveProfile(profile: PatientProfile): Promise<string> {
-  const res = await fetch(`${BASE_URL}/users`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(profileToApi(profile)),
-  });
-  if (!res.ok) {
-    let detail = '';
-    try {
-      const body = await res.json();
-      detail = body?.message ?? body?.error ?? body?.detail ?? '';
-      if (!detail && body?.errors) {
-        detail = Array.isArray(body.errors)
-          ? body.errors.map((e: { field?: string; message?: string }) => `${e.field}: ${e.message}`).join('; ')
-          : '';
-      }
-    } catch {
-      try {
-        detail = await res.text();
-      } catch {
-        detail = `HTTP ${res.status}`;
-      }
-    }
-    throw new Error(detail || `HTTP ${res.status}`);
-  }
-  const data = (await res.json()) as Partial<ApiProfile>;
-  const id = data.id;
-  if (!id) throw new Error('A API não retornou um ID de usuário.');
+  const payload = {
+    id: PROFILE_ID,
+    nome: profile.nome.trim(),
+    email: profile.email.trim(),
+    idade: profile.idade.trim(),
+    peso: profile.peso.trim(),
+    altura: profile.altura.trim(),
+    medicamentos: profile.medicamentos.trim(),
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from('patient_profile')
+    .upsert(payload)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message || 'Falha ao salvar perfil.');
+
+  const id = (data as DbProfile).id;
   setUserId(id);
   return id;
 }
@@ -153,40 +105,45 @@ function emptyProfile(): PatientProfile {
 }
 
 export async function fetchMeasurements(): Promise<GlicemiaRecord[]> {
-  const userId = getUserId();
-  if (!userId) return [];
-  const res = await fetch(`${BASE_URL}/measurements/user/${userId}`);
-  if (!res.ok) throw new Error(`Falha ao carregar medições (${res.status})`);
-  const data = await res.json();
-  const rows: ApiMeasurement[] = Array.isArray(data) ? data : [];
-  return rows.map(mapMeasurement);
+  const { data, error } = await supabase
+    .from('glicemia_records')
+    .select('*')
+    .order('data', { ascending: false });
+
+  if (error) throw new Error(error.message || 'Falha ao carregar medições.');
+  return (data as DbMeasurement[]).map(toRecord);
 }
 
 export async function createMeasurement(valor: number, data: string): Promise<GlicemiaRecord[]> {
-  const userId = getUserId();
-  if (!userId) throw new Error('Nenhum usuário cadastrado. Salve seu perfil primeiro.');
-  const res = await fetch(`${BASE_URL}/measurements`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      userId,
-      value: valor,
-      measurementDateTime: data,
-    }),
+  const dt = new Date(data);
+  const horario = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+  const h = dt.getHours();
+  let momento: Momento = 'aleatorio';
+  if (h < 8) momento = 'jejum';
+  else if (h < 12) momento = 'pre-refeicao';
+  else if (h < 16) momento = 'pos-refeicao';
+
+  const { error: insertError } = await supabase.from('glicemia_records').insert({
+    valor,
+    momento,
+    horario,
+    data,
   });
-  if (!res.ok) throw new Error(`Falha ao registrar medição (${res.status})`);
+
+  if (insertError) throw new Error(insertError.message || 'Falha ao registrar medição.');
+
   return fetchMeasurements();
 }
 
 export async function fetchAverage(): Promise<number | null> {
-  const userId = getUserId();
-  if (!userId) return null;
-  const res = await fetch(`${BASE_URL}/measurements/user/${userId}/media`);
-  if (!res.ok) return null;
-  const data: ApiAverage | number = await res.json();
-  if (typeof data === 'number') return data;
-  if (data && typeof data.media === 'number') return data.media;
-  return null;
+  const { data, error } = await supabase
+    .from('glicemia_records')
+    .select('valor');
+
+  if (error || !data || data.length === 0) return null;
+
+  const values = data.map((r: { valor: number }) => r.valor);
+  return values.reduce((sum: number, v: number) => sum + v, 0) / values.length;
 }
 
 export async function fetchUserName(): Promise<string> {
